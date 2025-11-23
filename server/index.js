@@ -9,25 +9,94 @@ const app = express();
 app.use(cors());
 app.use(bodyParser.json());
 
+
+
+
+console.log('Postgres client setup start');
+
 //Postgres Client Setup
 const { Pool } = require('pg');
+
+// robust parsing of ssl flag (accepts boolean or string)
+const pgSslFlag = (function () {
+    if (typeof keys.pgSsl === 'boolean') return keys.pgSsl;
+    if (typeof process.env.PG_SSL !== 'undefined') return process.env.PG_SSL === 'true';
+    if (typeof keys.pgSsl === 'string') return keys.pgSsl.toLowerCase() === 'true';
+    // default: enable SSL only in production if not explicitly provided
+    return process.env.NODE_ENV === 'production';
+})();
+
 const pgClient = new Pool({
     user: keys.pgUser,
     host: keys.pgHost,
     database: keys.pgDatabase,
     password: keys.pgPassword,
     port: keys.pgPort,
-    ssl:
-        process.env.NODE_ENV === "production"
-            ? { rejectUnauthorized: false }
-            : false
+    ssl: pgSslFlag ? { rejectUnauthorized: false } : false
 });
 
+// 💡 NEW: Listen for the 'error' event on the pool to catch connection issues
+pgClient.on("error", (err) => {
+    // This logs the error if the pool loses an idle client due to a network error
+    // OR if an initial connection attempt fails.
+    console.error("FATAL: Lost connection to PostgreSQL or initial connection failed.", err);
+    // Depending on the severity, you might want to exit the application here.
+    // process.exit(1); 
+});
+
+// Original 'connect' handler remains the same (for success logging and table creation)
 pgClient.on("connect", (client) => {
+    console.log("PostgreSQL client successfully connected and initialized.");
     client
         .query("CREATE TABLE IF NOT EXISTS values (number INT)")
-        .catch((err) => console.error(err));
+        .catch((err) => console.error("Error creating table:", err)); 
 });
+
+console.log('Postgres client setup end');
+
+(async function verifyPostgresConnection() {
+    console.log('Verifying PostgreSQL connectivity...');
+    try {
+        console.log('Postgres config:', {
+            host: keys.pgHost,
+            port: keys.pgPort,
+            user: keys.pgUser,
+            database: keys.pgDatabase,
+            ssl: !!pgClient.options.ssl
+        });
+        const result = await pgClient.query('SELECT NOW() AS now');
+        console.log('PostgreSQL verification SUCCESS - server time:', result.rows[0].now);
+    } catch (err) {
+        console.error('PostgreSQL verification FAILED:', err.message || err);
+        console.error(err.stack || err);
+
+        // If failure indicates server does not support SSL, try a non-SSL test and log guidance
+        if (/(does not support SSL|unsupported ssl)/i.test(err.message || '')) {
+            console.warn('Detected "server does not support SSL connections" error. Trying a non-SSL test connection for diagnosis...');
+            try {
+                const testPool = new Pool({
+                    user: keys.pgUser,
+                    host: keys.pgHost,
+                    database: keys.pgDatabase,
+                    password: keys.pgPassword,
+                    port: keys.pgPort,
+                    ssl: false
+                });
+                const res2 = await testPool.query('SELECT NOW() AS now');
+                console.log('NON-SSL verification SUCCESS - server time:', res2.rows[0].now);
+                await testPool.end();
+                console.warn('Actionable: Your Postgres server does not support SSL. Set keys.pgSsl or env PG_SSL to "false" (or disable ssl in your Pool config).');
+            } catch (err2) {
+                console.error('NON-SSL verification also FAILED:', err2.message || err2);
+                console.error(err2.stack || err2);
+            }
+        }
+
+        // optional: exit if DB is critical and unreachable
+        // process.exit(1);
+    }
+})();
+
 
 //Redis Client Setup
 const redis = require('redis');
@@ -122,5 +191,5 @@ app.post('/values', async (req, res) => {
 });
 
 app.listen(5000, err => {
-    console.log('Listening');
+    console.log('Listening on port 5000');
 });
