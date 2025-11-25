@@ -20,4 +20,26 @@ jobs:
         run: |-
           docker login -u ${{ secrets.DOCKER_USERNAME }} -p ${{ secrets.DOCKER_PASSWORD }}
           docker build -t warunaman/react-test -f ./client/Dockerfile.dev ./client
-          docker run -e CI=true warunaman/react-test npm test          
+          docker run -e CI=true warunaman/react-test npm test    
+
+      - name: Set Identity Provider
+        uses: "google-github-actions/auth@v2"
+        with:
+          workload_identity_provider: "projects/478188959562/locations/global/workloadIdentityPools/github/providers/my-repo"
+    
+      - name: Set Project
+        uses: google-github-actions/setup-gcloud@v2
+        with:
+          project_id: multi-k8s-479103
+
+      - name: Auth
+        run: |-
+          gcloud --quiet auth configure-docker
+
+      - name: Get Credentials
+        uses: google-github-actions/get-gke-credentials@v2
+        with:
+          cluster_name: multi-k8s
+          location: australia-southeast1
+          project_id: multi-k8s-479103
+ 
