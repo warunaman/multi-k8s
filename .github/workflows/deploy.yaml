@@ -39,7 +39,7 @@ jobs:
       - name: Get Credentials
         uses: google-github-actions/get-gke-credentials@v2
         with:
-          cluster_name: multi-k8s-new
+          cluster_name: multi-k8s
           location: australia-southeast1
           project_id: multi-k8s-new-480504
 
