@@ -35,3 +35,10 @@ spec:
                 secretKeyRef:
                   name: pgpassword
                   key: PGPASSWORD
+          resources:             # <-- ADDED: Resource Definition
+            requests:
+              cpu: "100m"        # Requesting 100 millicores (0.1 CPU core)
+              memory: "256Mi"    # Requesting 256 Megabytes
+            limits:
+              cpu: "300m"        # Allowing up to 300 millicores
+              memory: "512Mi"    # Allowing up to 512 Megabytes
