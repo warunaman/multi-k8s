@@ -35,6 +35,8 @@ spec:
                 secretKeyRef:
                   name: pgpassword
                   key: PGPASSWORD
+            - name: PG_SSL
+              value: "false"
           resources:             # <-- ADDED: Resource Definition
             requests:
               cpu: "100m"        # Requesting 100 millicores (0.1 CPU core)
